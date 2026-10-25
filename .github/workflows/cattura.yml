@@ -1,0 +1,100 @@
+# Cattura automatica dei weekend di gara (GP DeskBoard). Fa girare cattura_weekend.py del repository PRIVATO
+# motogp-ricognizione-api (letto col secret CATTURA_TOKEN) a blocchi di ~5 h 45 min, e salva la cattura LI'
+# (dati/cattura_<SIGLA>), non qui. Ogni 3 ore parte un blocco; il gruppo "cattura" ne fa girare uno solo alla
+# volta e tiene in coda il successivo, che parte appena il precedente finisce: cattura quasi continua.
+# Fuori dai weekend di gara (quando.py) ogni blocco finisce in pochi secondi.
+name: Cattura weekend
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"   # ogni 3 ore (UTC); i minuti 17 evitano l'ora piena, la piu' affollata su GitHub
+    - cron: "41 6 1 * *"     # il primo del mese: solo il segno di vita (in fondo)
+  workflow_dispatch:
+    inputs:
+      sigla:
+        description: "Sigla del GP da catturare (vuoto = quello in corso, se e' weekend di gara)"
+        required: false
+        default: ""
+      minuti:
+        description: "Durata del blocco in minuti (prova: 60; massimo 345)"
+        required: false
+        default: "345"
+
+concurrency:
+  group: cattura
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # solo per il file "ultimo_giro.txt" di questo repository (vedi in fondo)
+
+jobs:
+  cattura:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    env:
+      TZ: Europe/Rome   # cattura_weekend.py scrive l'ora LOCALE: come sul PC di Filippo (il banco replay la legge cosi')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Librerie
+        run: pip install -q requests
+
+      - name: Weekend di gara?
+        id: quando
+        run: |
+          if [ -n "${{ inputs.sigla }}" ]; then
+            echo "sigla=${{ inputs.sigla }}" >> "$GITHUB_OUTPUT"
+          else
+            python quando.py >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Repository delle catture (privato)
+        if: steps.quando.outputs.sigla != ''
+        uses: actions/checkout@v4
+        with:
+          repository: guidifilipporsm/motogp-ricognizione-api
+          token: ${{ secrets.CATTURA_TOKEN }}
+          path: ric
+
+      - name: Cattura
+        if: steps.quando.outputs.sigla != ''
+        working-directory: ric
+        env:
+          SIGLA: ${{ steps.quando.outputs.sigla }}
+          MINUTI: ${{ inputs.minuti || '345' }}
+        run: |
+          echo "Cattura ${SIGLA} per ${MINUTI} minuti"
+          # SIGINT = come Ctrl+C sul PC: lo script chiude i file e termina pulito
+          timeout -s INT "${MINUTI}m" python -u cattura_weekend.py "${SIGLA}" || true
+
+      - name: Salva la cattura nel repository privato
+        if: always() && steps.quando.outputs.sigla != ''
+        working-directory: ric
+        env:
+          SIGLA: ${{ steps.quando.outputs.sigla }}
+        run: |
+          git config user.name "Filippo Guidi"
+          git config user.email "302487899+guidifilipporsm@users.noreply.github.com"
+          git add "dati/cattura_${SIGLA}"
+          git commit -q -m "Cattura ${SIGLA}: blocco GitHub Actions fino a $(date '+%d/%m %H:%M')" || { echo "niente di nuovo"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git pull -q --rebase && git push -q && { echo "salvata"; exit 0; }
+            sleep 15
+          done
+          echo "::error::Cattura NON salvata nel repository privato (push fallito 5 volte)"
+          exit 1
+
+      - name: Segno di vita di questo repository
+        # GitHub spegne le Action pianificate dopo 60 giorni senza commit nel repository: un commit a ogni
+        # weekend di gara (e il primo giorno del mese) lo tiene vivo anche nella pausa invernale.
+        if: always() && (steps.quando.outputs.sigla != '' || github.event.schedule == '41 6 1 * *')
+        run: |
+          date -u '+%Y-%m-%d %H:%M UTC' > ultimo_giro.txt
+          git config user.name "Filippo Guidi"
+          git config user.email "302487899+guidifilipporsm@users.noreply.github.com"
+          git add ultimo_giro.txt
+          git commit -q -m "Ultimo giro della cattura" && git push -q || true
