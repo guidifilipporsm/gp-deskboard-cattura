@@ -4,9 +4,10 @@
 Weekend di gara in corso? Stampa "sigla=<SIGLA>" (formato di $GITHUB_OUTPUT) se adesso e' dentro la
 finestra di cattura di un GP, altrimenti "sigla=". Lo usa la GitHub Action di questo repository.
 
-Finestra: dal giorno PRIMA della data di inizio (le 16:00 UTC, cioe' giovedi' sera in Italia) a 18 ore
-dopo la fine della data di fine (lunedi' mattina): copre tutto il weekend in ogni fuso, Australia e
-Americhe comprese. Due richieste all'API pubblica dei risultati (stagioni e calendario), niente altro.
+Finestra: dal giorno PRIMA della data di inizio (le 16:00 UTC, cioe' giovedi' sera in Italia) al lunedi'
+alle 06:00 UTC: copre tutto il weekend in ogni fuso, Australia e Americhe comprese (gara americana finita la
+domenica sera UTC, classifica e mondiale arrivano entro poche ore). CORRETTO (26/10): era fino al lunedi'
+alle 18:00 UTC, si catturava mezza giornata a weekend finito. Due richieste all'API pubblica dei risultati (stagioni e calendario), niente altro.
 """
 import sys
 from datetime import datetime, timedelta, timezone
@@ -42,7 +43,7 @@ def main():
         except (KeyError, ValueError):
             continue
         da = inizio - timedelta(days=1) + timedelta(hours=16)
-        a = fine + timedelta(days=1) + timedelta(hours=18)
+        a = fine + timedelta(days=1) + timedelta(hours=6)
         if da <= adesso <= a:
             print(f"sigla={ev.get('short_name')}")
             print(f"weekend {ev.get('short_name')}: cattura da {da:%d/%m %H:%M} a {a:%d/%m %H:%M} UTC", file=sys.stderr)

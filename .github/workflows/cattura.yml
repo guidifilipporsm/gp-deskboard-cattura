@@ -34,9 +34,9 @@ jobs:
     env:
       TZ: Europe/Rome   # cattura_weekend.py scrive l'ora LOCALE: come sul PC di Filippo (il banco replay la legge cosi')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -54,7 +54,7 @@ jobs:
 
       - name: Repository delle catture (privato)
         if: steps.quando.outputs.sigla != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: guidifilipporsm/motogp-ricognizione-api
           token: ${{ secrets.CATTURA_TOKEN }}
@@ -81,8 +81,13 @@ jobs:
           git config user.email "302487899+guidifilipporsm@users.noreply.github.com"
           git add "dati/cattura_${SIGLA}"
           git commit -q -m "Cattura ${SIGLA}: blocco GitHub Actions fino a $(date '+%d/%m %H:%M')" || { echo "niente di nuovo"; exit 0; }
+          # CORRETTO (26/10, prima prova): lo script modifica anche dati/cattura_tmp (file di servizio, versionato)
+          # e "git pull --rebase" si rifiutava di partire con modifiche non salvate: push fallito 5 volte.
+          # Ora quelle modifiche si buttano (non servono) e gli errori di git si vedono nel log.
+          git checkout -- dati/cattura_tmp 2>/dev/null || true
           for i in 1 2 3 4 5; do
-            git pull -q --rebase && git push -q && { echo "salvata"; exit 0; }
+            git pull --rebase --autostash && git push && { echo "salvata"; exit 0; }
+            echo "tentativo $i non riuscito, riprovo fra 15 s"
             sleep 15
           done
           echo "::error::Cattura NON salvata nel repository privato (push fallito 5 volte)"
