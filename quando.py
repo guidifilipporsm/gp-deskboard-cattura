@@ -4,7 +4,7 @@
 Weekend di gara in corso? Stampa "sigla=<SIGLA>" (formato di $GITHUB_OUTPUT) se adesso e' dentro la
 finestra di cattura di un GP, altrimenti "sigla=". Lo usa la GitHub Action di questo repository.
 
-Finestra: dal giorno PRIMA della data di inizio (le 16:00 UTC, cioe' giovedi' sera in Italia) al lunedi'
+Vale anche per i test (29/10), della stagione corrente e di quella dopo. Finestra: dal giorno PRIMA della data di inizio (le 16:00 UTC, cioe' giovedi' sera in Italia) al lunedi'
 alle 06:00 UTC: copre tutto il weekend in ogni fuso, Australia e Americhe comprese (gara americana finita la
 domenica sera UTC, classifica e mondiale arrivano entro poche ore). CORRETTO (26/10): era fino al lunedi'
 alle 18:00 UTC, si catturava mezza giornata a weekend finito. Due richieste all'API pubblica dei risultati (stagioni e calendario), niente altro.
@@ -32,11 +32,16 @@ def main():
     s.raise_for_status()
     stagioni = lista(s.json(), "seasons")
     cur = next((x for x in stagioni if x.get("current")), None) or max(stagioni, key=lambda x: x.get("year", 0))
-    e = requests.get(f"{RESULTS}/results/events", params={"seasonUuid": cur["id"]}, headers=HEADERS, timeout=20)
-    e.raise_for_status()
-    for ev in lista(e.json(), "events"):
-        if ev.get("test"):
-            continue
+    # CORRETTO (29/10, pausa invernale): anche i TEST, e anche la stagione DOPO la corrente: il test dopo
+    # Valencia sta nella stagione dell'anno dopo (VC1 del 18/11/2025 era nella 2026). Prima i test si
+    # saltavano e si guardava solo la stagione corrente: il test di dicembre 2026 non sarebbe stato catturato.
+    # Una richiesta in piu' solo quando la stagione dopo esiste gia'.
+    eventi = []
+    for st in [cur] + [x for x in stagioni if x.get("year") == cur.get("year", 0) + 1]:
+        e = requests.get(f"{RESULTS}/results/events", params={"seasonUuid": st["id"]}, headers=HEADERS, timeout=20)
+        e.raise_for_status()
+        eventi += lista(e.json(), "events")
+    for ev in eventi:
         try:
             inizio = datetime.fromisoformat(str(ev["date_start"])[:10]).replace(tzinfo=timezone.utc)
             fine = datetime.fromisoformat(str(ev["date_end"])[:10]).replace(tzinfo=timezone.utc)
