@@ -65,7 +65,9 @@ jobs:
         working-directory: ric
         env:
           SIGLA: ${{ steps.quando.outputs.sigla }}
-          MINUTI: ${{ inputs.minuti || '345' }}
+          # CORRETTO (30/10): la durata la dice quando.py (mai oltre la fine della finestra, vedi li'); a mano
+          # vale quella scritta. Prima era sempre 345: il blocco di un GP rubava le prime ore al test del lunedi'.
+          MINUTI: ${{ inputs.minuti || steps.quando.outputs.minuti || '345' }}
         run: |
           echo "Cattura ${SIGLA} per ${MINUTI} minuti"
           # SIGINT = come Ctrl+C sul PC: lo script chiude i file e termina pulito
