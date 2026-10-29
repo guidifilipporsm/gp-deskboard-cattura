@@ -5,8 +5,8 @@ registra le risposte delle API pubbliche dei risultati e le salva in un reposito
 Guidi. Servono a provare il firmware di GP DeskBoard su weekend veri (banco replay). I dati catturati non
 stanno qui.
 
-- `quando.py`: dice se adesso e' un weekend di gara o di test (dal giovedi' sera al lunedi' mattina) e quanto
-  deve durare il blocco: mai oltre la fine della finestra, che finisce un'ora prima dell'evento dopo.
+- `quando.py`: dice se adesso e' un weekend di gara o di test (dal giovedi' sera a 12 ore dopo l'ultima
+  sessione) e quanto deve durare il blocco: mai oltre la fine della finestra.
 - `.github/workflows/cattura.yml`: ogni 3 ore controlla; nel weekend fa girare la cattura a blocchi di
   circa 6 ore, uno dopo l'altro, e la salva nel repository privato.
 - `ultimo_giro.txt`: aggiornato a ogni weekend e il primo del mese, perche' GitHub non spenga l'Action
