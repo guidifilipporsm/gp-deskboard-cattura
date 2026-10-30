@@ -16,9 +16,9 @@ on:
         required: false
         default: ""
       minuti:
-        description: "Durata del blocco in minuti (prova: 60; massimo 345)"
+        description: "Durata del blocco in minuti (prova: 60; massimo 345; vuoto = fino alla fine della finestra)"
         required: false
-        default: "345"
+        default: ""   # CORRETTO (30/10): era "345", ora decide quando.py (anche per i blocchi a catena, in fondo)
 
 concurrency:
   group: cattura
@@ -26,6 +26,7 @@ concurrency:
 
 permissions:
   contents: write   # solo per il file "ultimo_giro.txt" di questo repository (vedi in fondo)
+  actions: write    # AGGIUNTA (30/10): per far partire il blocco successivo (vedi "Blocco successivo")
 
 jobs:
   cattura:
@@ -105,3 +106,16 @@ jobs:
           git config user.email "302487899+guidifilipporsm@users.noreply.github.com"
           git add ultimo_giro.txt
           git commit -q -m "Ultimo giro della cattura" && git push -q || true
+
+      - name: Blocco successivo
+        # AGGIUNTA (30/10, GP MAL): le partenze pianificate di GitHub NON sono affidabili. Misurato: 13 e 46 min
+        # di ritardo, poi le partenze delle 03:17 e 06:17 UTC di venerdi' mai arrivate: niente cattura dalle 06:49
+        # UTC (fine del blocco) per ore, prove MotoGP comprese. Ora ogni blocco, finito, fa partire da solo il
+        # successivo (workflow_dispatch: l'unico evento che il GITHUB_TOKEN puo' far partire) senza sigla ne'
+        # minuti: decide quando.py, e fuori dalla finestra il blocco nuovo finisce subito e la catena si ferma.
+        # La pianificazione resta come riserva e per far partire la catena il giovedi'. Uno solo in attesa nel
+        # gruppo "cattura": niente catene doppie.
+        if: always() && steps.quando.outputs.sigla != '' && inputs.sigla == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run cattura.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" && echo "blocco successivo richiesto"
